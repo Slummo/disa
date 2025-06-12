@@ -25,11 +25,11 @@ typedef enum token_type {
     SO_MUL,     // *=
     SO_DIV,     // /=
     SO_MOD,     // %=
-    SO_OR,      //|=
-    SO_AND,     //&=
-    SO_XOR,     //^=
+    SO_OR,      // |=
+    SO_AND,     // &=
+    SO_XOR,     // ^=
     SO_LSHIFT,  // <<=
-    SO_RSHIFT,  //>>=
+    SO_RSHIFT,  // >>=
 
     // Relational operators
     RO_EQ,   // ==
@@ -79,8 +79,12 @@ typedef enum token_type {
     L_S,  // e.g. "hello"
 
     // Identifiers
-    ID  // e.g. x
+    ID,  // e.g. x,
+
+    T_NOVALUE
 } token_type_t;
+const char* token_type_to_str(token_type_t tt);
+
 typedef union token_value token_value_t;
 typedef struct token _token, *token_t;
 
@@ -100,6 +104,11 @@ token_t token_new_string(const char* value);
 token_t token_new_id(const char* id);
 
 token_t token_clone(const token_t t);
+
+token_type_t token_get_type(token_t t);
+token_value_t token_get_value(token_t t);
+int token_has_value(token_t t);
+int token_needs_free(token_t t);
 
 void token_print(const token_t t);
 

@@ -1,8 +1,9 @@
 #include "tokenizer.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 
-#define PARTIAL_SIZE 128
+#define PARTIAL_SIZE 256
 #define CHUNK_SIZE 16
 
 struct tokenizer {
@@ -30,6 +31,17 @@ tokenizer_t tokenizer_new() {
 
 // Tokenizes the file
 int tokenize(tokenizer_t t, const char* filename) {
+    struct stat path_stat;
+    if (stat(filename, &path_stat)) {
+        perror("Error checking file");
+        return 0;
+    }
+
+    if (S_ISDIR(path_stat.st_mode)) {
+        fprintf(stderr, "Error: '%s' is a directory, not a file.\n", filename);
+        return 0;
+    }
+
     FILE* f = fopen(filename, "r");
     if (!f) {
         perror("Error opening file");
@@ -39,6 +51,10 @@ int tokenize(tokenizer_t t, const char* filename) {
     char chunk[CHUNK_SIZE];
     while (!feof(f)) {
         size_t read = fread(chunk, sizeof(char), sizeof(char) * CHUNK_SIZE, f);
+
+        printf("%s\n", chunk);
+
+        // TODO
     }
 
     t->partial[0] = '\0';
