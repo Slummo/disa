@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include "utils/str.h"
+#include <inttypes.h>
 
 const char* token_type_to_str(token_type_t tt) {
     switch (tt) {
@@ -144,9 +145,10 @@ const char* token_type_to_str(token_type_t tt) {
     }
 }
 
+// TODO: update ivalue type to "long long"
 union token_value {
     char cvalue;
-    int ivalue;
+    int64_t ivalue;
     char* svalue;
 };
 
@@ -191,7 +193,7 @@ token_t token_new_char(char value) {
 }
 
 // Create a new token for an integer literal.
-token_t token_new_int(int value) {
+token_t token_new_int(int64_t value) {
     token_t t = (token_t)malloc(sizeof(_token));
     if (!t) {
         return NULL;
@@ -307,7 +309,8 @@ void token_print(const token_t t) {
                 break;
             }
             case L_I: {
-                printf("%s(%d)", token_type_to_str(t->type), t->value.ivalue);
+                // To correctly format int64_t
+                printf("%s(%" PRId64 ")", token_type_to_str(t->type), t->value.ivalue);
                 break;
             }
             case L_S:

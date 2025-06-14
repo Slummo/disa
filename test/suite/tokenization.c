@@ -1,20 +1,20 @@
 #include "tests.h"
-#include "tokenization/token.h"
-#include "utils/str.h"
 #include <string.h>
 #include <stdio.h>
+#include "tokenization/tokenizer.h"
 
-void run_token_test(const char* label, int (*token_fn)(char**, token_t*), const char* str, int expected_result,
+void run_token_test(const char* label, match_t (*token_fn)(char**, token_t*), const char* str, match_t expected_result,
                     const char* expected_str, token_type_t expected_token_type, token_t* tp) {
-    char buffer[256] = {0};
+    char buffer[256];
     char* str2 = NULL;
 
     if (str) {
-        strncpy(buffer, str, sizeof(buffer));
+        strncpy(buffer, str, 255);
+        buffer[255] = '\0';
         str2 = buffer;
     }
 
-    int result = token_fn(&str2, tp);
+    match_t result = token_fn(&str2, tp);
 
     // Compare strings safely
     int str_matches = 0;
@@ -27,249 +27,285 @@ void run_token_test(const char* label, int (*token_fn)(char**, token_t*), const 
     int pass = (result == expected_result) && str_matches && (token_get_type(*tp) == expected_token_type);
 
     // Print aligned output
-    printf("%s: %s\n\t-expected result: %d, got: %d\n\t-expected new str: '%s', got: '%s'\n\t-expected token "
-           "type: '%s', got: %s\n",
-           label, pass ? "✅ OK" : "❌ FAIL", expected_result, result, expected_str ? expected_str : "NULL",
-           str2 ? str2 : "NULL", token_type_to_str(expected_token_type), token_type_to_str(token_get_type(*tp)));
+    printf("%s: %s\n\t-expected result: %s, got: %s\n\t-expected new str: \"%s\", got: \"%s\"\n\t-expected token "
+           "type: %s, got: %s\n",
+           label, pass ? "✅ OK" : "❌ FAIL", match_to_string(expected_result), match_to_string(result),
+           expected_str ? expected_str : "NULL", str2 ? str2 : "NULL", token_type_to_str(expected_token_type),
+           token_type_to_str(token_get_type(*tp)));
 }
 
 void token_matching() {
-    printf("=============Testing for token matching=============\n");
+    printf("======================= Testing for token matching ========================\n");
 
     char* str = NULL;
     token_t t = NULL;
 
     // ================== KEYWORDS ==================
-    run_token_test("IS_KEYWORD(NULL)", is_keyword, str, -2, NULL, T_NOVALUE, &t);
+    run_token_test("match_keyword(NULL)", match_keyword, str, MATCH_ERR, NULL, T_NOVALUE, &t);
 
     str = "   int";
     t = NULL;
-    run_token_test("IS_KEYWORD('   int')", is_keyword, str, 1, "", K_INT, &t);
+    run_token_test("match_keyword('   int')", match_keyword, str, MATCH_FULL, "", K_INT, &t);
 
     str = "   int_";
     t = NULL;
-    run_token_test("IS_KEYWORD('   int_')", is_keyword, str, 0, "int_", T_NOVALUE, &t);
+    run_token_test("match_keyword('   int_')", match_keyword, str, MATCH_NONE, "int_", T_NOVALUE, &t);
 
     str = "   void   abc";
     t = NULL;
-    run_token_test("IS_KEYWORD('   void   abc')", is_keyword, str, 1, "abc", K_VOID, &t);
+    run_token_test("match_keyword('   void   abc')", match_keyword, str, MATCH_FULL, "abc", K_VOID, &t);
 
     str = "   voidabc";
     t = NULL;
-    run_token_test("IS_KEYWORD('   voidabc')", is_keyword, str, 0, "voidabc", T_NOVALUE, &t);
+    run_token_test("match_keyword('   voidabc')", match_keyword, str, MATCH_NONE, "voidabc", T_NOVALUE, &t);
+
+    str = "   ret";
+    t = NULL;
+    run_token_test("match_keyword('   ret')", match_keyword, str, MATCH_PARTIAL, "ret", T_NOVALUE, &t);
+
+    str = "w";
+    t = NULL;
+    run_token_test("match_keyword('w')", match_keyword, str, MATCH_PARTIAL, "w", T_NOVALUE, &t);
 
     // ================== ASSIGNMENT OPERATORS ==================
     str = " += next";
     t = NULL;
-    run_token_test("IS_ASSIGNMENT_OPERATOR(' += next')", is_assignment_operator, str, 1, "next", SO_ADD, &t);
+    run_token_test("match_assignment_operator(' += next')", match_assignment_operator, str, MATCH_FULL, "next", SO_ADD,
+                   &t);
 
     str = " + next";
     t = NULL;
-    run_token_test("IS_ASSIGNMENT_OPERATOR(' + next')", is_assignment_operator, str, 0, "+ next", T_NOVALUE, &t);
+    run_token_test("match_assignment_operator(' + next')", match_assignment_operator, str, MATCH_NONE, "+ next",
+                   T_NOVALUE, &t);
 
     str = " +=abc";
     t = NULL;
-    run_token_test("IS_ASSIGNMENT_OPERATOR(' +=abc')", is_assignment_operator, str, 1, "abc", SO_ADD, &t);
+    run_token_test("match_assignment_operator(' +=abc')", match_assignment_operator, str, MATCH_FULL, "abc", SO_ADD,
+                   &t);
 
     str = " *=x";
     t = NULL;
-    run_token_test("IS_ASSIGNMENT_OPERATOR(' *=x')", is_assignment_operator, str, 1, "x", SO_MUL, &t);
+    run_token_test("match_assignment_operator(' *=x')", match_assignment_operator, str, MATCH_FULL, "x", SO_MUL, &t);
 
     // ================== LOGIC OPERATORS ==================
     str = " &&x";
     t = NULL;
-    run_token_test("IS_LOGIC_OPERATOR(' &&x')", is_logic_operator, str, 1, "x", LO_AND, &t);
+    run_token_test("match_logic_operator(' &&x')", match_logic_operator, str, MATCH_FULL, "x", LO_AND, &t);
 
     str = " &=x";
     t = NULL;
-    run_token_test("IS_LOGIC_OPERATOR(' &=x')", is_logic_operator, str, 0, "&=x", T_NOVALUE, &t);
+    run_token_test("match_logic_operator(' &=x')", match_logic_operator, str, MATCH_NONE, "&=x", T_NOVALUE, &t);
 
     str = " !x";
     t = NULL;
-    run_token_test("IS_LOGIC_OPERATOR(' !x')", is_logic_operator, str, 1, "x", LO_NOT, &t);
+    run_token_test("match_logic_operator(' !x')", match_logic_operator, str, MATCH_FULL, "x", LO_NOT, &t);
 
     str = " !=x";
     t = NULL;
-    run_token_test("IS_LOGIC_OPERATOR(' !=x')", is_logic_operator, str, -1, "x", RO_NEQ, &t);
+    run_token_test("match_logic_operator(' !=x')", match_logic_operator, str, MATCH_FULL_DIFF, "x", RO_NEQ, &t);
 
     // ================== RELATIONAL OPERATORS ==================
     str = " ==   ";
     t = NULL;
-    run_token_test("IS_RELATIONAL_OPERATOR(' ==   ')", is_relational_operator, str, 1, "", RO_EQ, &t);
+    run_token_test("match_relational_operator(' ==   ')", match_relational_operator, str, MATCH_FULL, "", RO_EQ, &t);
 
     str = " >";
     t = NULL;
-    run_token_test("IS_RELATIONAL_OPERATOR(' >')", is_relational_operator, str, 1, "", RO_GT, &t);
+    run_token_test("match_relational_operator(' >')", match_relational_operator, str, MATCH_FULL, "", RO_GT, &t);
 
     str = " >=more";
     t = NULL;
-    run_token_test("IS_RELATIONAL_OPERATOR(' >=more')", is_relational_operator, str, 1, "more", RO_GE, &t);
+    run_token_test("match_relational_operator(' >=more')", match_relational_operator, str, MATCH_FULL, "more", RO_GE,
+                   &t);
 
     str = " <= x abc";
     t = NULL;
-    run_token_test("IS_RELATIONAL_OPERATOR(' <= x abc')", is_relational_operator, str, 1, "x abc", RO_LE, &t);
+    run_token_test("match_relational_operator(' <= x abc')", match_relational_operator, str, MATCH_FULL, "x abc", RO_LE,
+                   &t);
+
+    str = " >x abc";
+    t = NULL;
+    run_token_test("match_relational_operator(' >x abc')", match_relational_operator, str, MATCH_FULL, "x abc", RO_GT,
+                   &t);
 
     // ================== BITWISE OPERATORS ==================
     str = " >>abc";
     t = NULL;
-    run_token_test("IS_BITWISE_OPERATOR(' >>abc')", is_bitwise_operator, str, 1, "abc", BW_RSHIFT, &t);
+    run_token_test("match_bitwise_operator(' >>abc')", match_bitwise_operator, str, MATCH_FULL, "abc", BW_RSHIFT, &t);
 
     str = " <<=abc";
     t = NULL;
-    run_token_test("IS_BITWISE_OPERATOR(' <<=abc')", is_bitwise_operator, str, -1, "abc", SO_LSHIFT, &t);
+    run_token_test("match_bitwise_operator(' <<=abc')", match_bitwise_operator, str, MATCH_FULL_DIFF, "abc", SO_LSHIFT,
+                   &t);
 
     str = " & next";
     t = NULL;
-    run_token_test("IS_BITWISE_OPERATOR(' & next')", is_bitwise_operator, str, 1, "next", BW_AND, &t);
+    run_token_test("match_bitwise_operator(' & next')", match_bitwise_operator, str, MATCH_FULL, "next", BW_AND, &t);
 
     str = " |= next";
     t = NULL;
-    run_token_test("IS_BITWISE_OPERATOR(' |= next')", is_bitwise_operator, str, -1, "next", SO_OR, &t);
+    run_token_test("match_bitwise_operator(' |= next')", match_bitwise_operator, str, MATCH_FULL_DIFF, "next", SO_OR,
+                   &t);
 
     str = " ~= next";
     t = NULL;
-    run_token_test("IS_BITWISE_OPERATOR(' ~= next')", is_bitwise_operator, str, 1, "= next", BW_NOT, &t);
+    run_token_test("match_bitwise_operator(' ~= next')", match_bitwise_operator, str, MATCH_FULL, "= next", BW_NOT, &t);
 
     str = " ~next";
     t = NULL;
-    run_token_test("IS_BITWISE_OPERATOR(' ~next')", is_bitwise_operator, str, 1, "next", BW_NOT, &t);
+    run_token_test("match_bitwise_operator(' ~next')", match_bitwise_operator, str, MATCH_FULL, "next", BW_NOT, &t);
 
     // ================== ARITHMETIC OPERATORS ==================
     str = " + x";
     t = NULL;
-    run_token_test("IS_ARITHMETIC_OPERATOR(' + x')", is_arithmetic_operator, str, 1, "x", AO_SUM, &t);
+    run_token_test("match_arithmetic_operator(' + x')", match_arithmetic_operator, str, MATCH_FULL, "x", AO_SUM, &t);
 
     str = " += x";
     t = NULL;
-    run_token_test("IS_ARITHMETIC_OPERATOR(' += x')", is_arithmetic_operator, str, -1, "x", SO_ADD, &t);
+    run_token_test("match_arithmetic_operator(' += x')", match_arithmetic_operator, str, MATCH_FULL_DIFF, "x", SO_ADD,
+                   &t);
 
     str = " *= x";
     t = NULL;
-    run_token_test("IS_ARITHMETIC_OPERATOR(' *= x')", is_arithmetic_operator, str, -1, "x", SO_MUL, &t);
+    run_token_test("match_arithmetic_operator(' *= x')", match_arithmetic_operator, str, MATCH_FULL_DIFF, "x", SO_MUL,
+                   &t);
+
+    str = " -x";
+    t = NULL;
+    run_token_test("match_arithmetic_operator(' -x')", match_arithmetic_operator, str, MATCH_FULL, "x", AO_SUB, &t);
 
     // ================== SEPARATORS ==================
     str = " { int x; }";
     t = NULL;
-    run_token_test("IS_SEPARATOR(' { int x; }')", is_separator, str, 1, "int x; }", S_OC, &t);
+    run_token_test("match_separator(' { int x; }')", match_separator, str, MATCH_FULL, "int x; }", S_OC, &t);
 
     str = " ; end";
     t = NULL;
-    run_token_test("IS_SEPARATOR(' ; end')", is_separator, str, 1, "end", S_SCOL, &t);
+    run_token_test("match_separator(' ; end')", match_separator, str, MATCH_FULL, "end", S_SCOL, &t);
 
     str = " ? next";
     t = NULL;
-    run_token_test("IS_SEPARATOR(' ? next')", is_separator, str, 1, "next", S_QM, &t);
+    run_token_test("match_separator(' ? next')", match_separator, str, MATCH_FULL, "next", S_QM, &t);
+
+    str = " ;next";
+    t = NULL;
+    run_token_test("match_separator(' ;next')", match_separator, str, MATCH_FULL, "next", S_SCOL, &t);
+
+    str = " (next)";
+    t = NULL;
+    run_token_test("match_separator(' (next)')", match_separator, str, MATCH_FULL, "next)", S_OP, &t);
 
     // ================== LITERALS ==================
     str = "  'x'";
     t = NULL;
-    printf("is_char_literal('  'x'') | expected: 1, got: %d. Token: ", is_char_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_char_literal(  'x')", match_char_literal, str, MATCH_FULL, "", L_C, &t);
 
     str = "  x'";
     t = NULL;
-    printf("is_char_literal('  x'') | expected: 0, got: %d. Token: ", is_char_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_char_literal(  x')", match_char_literal, str, MATCH_NONE, "x'", T_NOVALUE, &t);
 
     str = "  'x";
     t = NULL;
-    printf("is_char_literal('  'x') | expected: 0, got: %d. Token: ", is_char_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_char_literal(  'x)", match_char_literal, str, MATCH_PARTIAL, "'x", T_NOVALUE, &t);
+
+    str = "  '\\n";
+    t = NULL;
+    run_token_test("match_char_literal(  '\\n)", match_char_literal, str, MATCH_PARTIAL, "'\\n", T_NOVALUE, &t);
+
+    str = "  \\n'";
+    t = NULL;
+    run_token_test("match_char_literal(  \\n')", match_char_literal, str, MATCH_NONE, "\\n'", T_NOVALUE, &t);
+
+    str = "  '\\n'";
+    t = NULL;
+    run_token_test("match_char_literal(  '\\n')", match_char_literal, str, MATCH_FULL, "", L_C, &t);
+
+    str = "  '''";
+    t = NULL;
+    run_token_test("match_char_literal(  ''')", match_char_literal, str, MATCH_ERR, "'''", T_NOVALUE, &t);
+
+    str = "  '";
+    t = NULL;
+    run_token_test("match_char_literal(  ')", match_char_literal, str, MATCH_PARTIAL, "'", T_NOVALUE, &t);
+
+    str = "  '\\";
+    t = NULL;
+    run_token_test("match_char_literal(  '\\)", match_char_literal, str, MATCH_PARTIAL, "'\\", T_NOVALUE, &t);
+
+    str = "  ''";
+    t = NULL;
+    run_token_test("match_char_literal(  '')", match_char_literal, str, MATCH_ERR, "''", T_NOVALUE, &t);
 
     char buf[] = "  ciao = 4";
     str = buf;
     t = NULL;
-    printf("is_string_literal('  ciao = 4') | expected: 0, got: %d. Token: ", is_string_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_string_literal(  ciao = 4)", match_string_literal, str, MATCH_NONE, "ciao = 4", T_NOVALUE,
+                   &t);
 
     char buf2[] = "  \"ciao   \"";
     str = buf2;
     t = NULL;
-    printf("is_string_literal('  \"ciao   \"') | expected: 1, got: %d. Token: ", is_string_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_string_literal(  \"ciao   \")", match_string_literal, str, MATCH_FULL, "", L_S, &t);
 
     char buf3[] = "  ciao   \"";
     str = buf3;
     t = NULL;
-    printf("is_string_literal('  ciao   \"') | expected: 0, got: %d. Token: ", is_string_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_string_literal(  ciao   \")", match_string_literal, str, MATCH_NONE, "ciao   \"", T_NOVALUE,
+                   &t);
 
     char buf4[] = "  \"ciao   ";
     str = buf4;
     t = NULL;
-    printf("is_string_literal('  \"ciao   ') | expected: 0, got: %d. Token: ", is_string_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_string_literal(  \"ciao   )", match_string_literal, str, MATCH_PARTIAL, "\"ciao   ",
+                   T_NOVALUE, &t);
 
     str = "  a5";
     t = NULL;
-    printf("is_integer_literal('  a5') | expected: 0, got: %d. Token: ", is_integer_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_integer_literal(  a5)", match_integer_literal, str, MATCH_NONE, "a5", T_NOVALUE, &t);
 
     str = "  3192384";
     t = NULL;
-    printf("is_integer_literal('  3192384') | expected: 1, got: %d. Token: ", is_integer_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_integer_literal(  3192384)", match_integer_literal, str, MATCH_PARTIAL, "3192384", T_NOVALUE,
+                   &t);
 
     str = "  100;";
     t = NULL;
-    printf("is_integer_literal('  100;') | expected: 1, got: %d. Token: ", is_integer_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_integer_literal(  100;)", match_integer_literal, str, MATCH_FULL, ";", L_I, &t);
 
     str = "  100 ";
     t = NULL;
-    printf("is_integer_literal('  100 ') | expected: 1, got: %d. Token: ", is_integer_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_integer_literal(  100 )", match_integer_literal, str, MATCH_FULL, "", L_I, &t);
 
     str = "  100+";
     t = NULL;
-    printf("is_integer_literal('  100+') | expected: 1, got: %d. Token: ", is_integer_literal(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_integer_literal(  100+)", match_integer_literal, str, MATCH_FULL, "+", L_I, &t);
 
+    str = "123456789123456789 ";
+    t = NULL;
+    run_token_test("match_integer_literal(123456789123456789 )", match_integer_literal, str, MATCH_FULL, "", L_I, &t);
+
+    // ================== IDENTIFIERS ==================
     str = "  abc";
     t = NULL;
-    printf("is_identifier('  abc') | expected: 1, got: %d. Token: ", is_identifier(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_identifier(  abc)", match_identifier, str, MATCH_PARTIAL, "abc", T_NOVALUE, &t);
 
     str = "  x12_ ";
     t = NULL;
-    printf("is_identifier('  x12_') | expected: 1, got: %d. Token: ", is_identifier(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_identifier(  x12_ )", match_identifier, str, MATCH_FULL, "", ID, &t);
 
     str = "  = 5";
     t = NULL;
-    printf("is_identifier('  = 5') | expected: 0, got: %d. Token: ", is_identifier(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_identifier(  = 5)", match_identifier, str, MATCH_NONE, "= 5", T_NOVALUE, &t);
 
     str = "  100+";
     t = NULL;
-    printf("is_identifier('  100+') | expected: 0, got: %d. Token: ", is_identifier(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_identifier(  100+)", match_identifier, str, MATCH_NONE, "100+", T_NOVALUE, &t);
 
     str = "  _45";
     t = NULL;
-    printf("is_identifier('  _45') | expected: 1, got: %d. Token: ", is_identifier(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_identifier(  _45)", match_identifier, str, MATCH_PARTIAL, "_45", T_NOVALUE, &t);
 
     str = "int_5";
     t = NULL;
-    printf("is_identifier('int_5') | expected: 1, got: %d. Token: ", is_identifier(&str, &t));
-    token_print(t);
-    puts("");
+    run_token_test("match_identifier(int_5)", match_identifier, str, MATCH_PARTIAL, "int_5", T_NOVALUE, &t);
 }

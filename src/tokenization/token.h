@@ -1,6 +1,8 @@
 #ifndef TOKEN_H
 #define TOKEN_H
 
+#include <stdint.h>
+
 typedef enum token_type {
     // Keywords
     K_VOID,      // void
@@ -95,7 +97,7 @@ token_t token_new(token_type_t type);
 token_t token_new_char(char value);
 
 // Create a new token for an integer literal
-token_t token_new_int(int value);
+token_t token_new_int(int64_t value);
 
 // Create a new token for a string literal
 token_t token_new_string(const char* value);
